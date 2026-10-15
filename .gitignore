@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Model og'irliklari va kesh — GitHub'ga YUKLANMAYDI (juda katta)
+weights/
+hf_cache/
+*.safetensors
+*.onnx
+
+# Natija rasmlari
+outputs/
+
+# Muhit sozlamalari
+.env

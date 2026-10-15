@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual Kiyib Ko'rish</title>
+<style>
+  :root {
+    --bg: #f5f3ef; --card: #ffffff; --text: #1d1b18; --muted: #6f6a62;
+    --line: #e2ddd4; --accent: #2f5d50; --accent-text: #ffffff;
+    --ok: #2f7d4f; --warn: #b7791f; --err: #b3261e; --drop: #faf8f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513; --card: #201f1c; --text: #ece8e1; --muted: #a39d93;
+      --line: #36332e; --accent: #7fb8a4; --accent-text: #10201b;
+      --ok: #6fcf97; --warn: #f2c94c; --err: #ff8a80; --drop: #1b1a18;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  .status { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.err { background: var(--err); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } .result-card { grid-column: 1 / -1; } }
+  @media (max-width: 560px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .card h2 { font-size: 14px; font-weight: 600; margin: 0; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+
+  .drop {
+    position: relative; aspect-ratio: 2 / 3; border: 2px dashed var(--line); border-radius: 10px;
+    background: var(--drop); display: grid; place-items: center; text-align: center;
+    color: var(--muted); cursor: pointer; overflow: hidden; transition: border-color .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); }
+  .drop img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--drop); }
+  .drop input { display: none; }
+  .drop .hint { padding: 16px; font-size: 14px; }
+  .drop .hint b { display: block; color: var(--text); font-size: 15px; margin-bottom: 4px; }
+
+  label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+  select, input[type=number] {
+    font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
+    border-radius: 8px; padding: 8px 10px; width: 100%;
+  }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .result-box {
+    aspect-ratio: 2 / 3; border-radius: 10px; background: var(--drop); border: 1px solid var(--line);
+    display: grid; place-items: center; overflow: hidden; color: var(--muted); text-align: center; position: relative;
+  }
+  .result-box img { width: 100%; height: 100%; object-fit: contain; }
+  .thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .thumbs img { width: 56px; height: 84px; object-fit: cover; border-radius: 6px; border: 2px solid transparent; cursor: pointer; }
+  .thumbs img.active { border-color: var(--accent); }
+
+  .actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; }
+  button.primary {
+    font: inherit; font-weight: 600; background: var(--accent); color: var(--accent-text);
+    border: 0; border-radius: 10px; padding: 12px 22px; cursor: pointer; min-width: 180px;
+  }
+  button.primary:disabled { opacity: .5; cursor: not-allowed; }
+  a.download { color: var(--accent); font-weight: 600; text-decoration: none; display: none; }
+  .msg { font-size: 14px; color: var(--muted); }
+  .msg.err { color: var(--err); }
+
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; margin: 0 auto 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Virtual kiyib ko'rish — test</h1>
+    <div class="status"><span class="dot" id="dot"></span><span id="statusText">Server tekshirilmoqda…</span></div>
+  </header>
+
+  <div class="grid">
+    <!-- 1. Odam rasmi -->
+    <div class="card">
+      <h2>1. Odam rasmi</h2>
+      <label class="drop" id="personDrop">
+        <input type="file" id="personInput" accept="image/jpeg,image/png,image/webp">
+        <div class="hint"><b>Rasm tanlang</b>yoki shu yerga tashlang<br>JPG / PNG / WEBP</div>
+      </label>
+    </div>
+
+    <!-- 2. Kiyim rasmi + sozlamalar -->
+    <div class="card">
+      <h2>2. Kiyim rasmi</h2>
+      <label class="drop" id="garmentDrop">
+        <input type="file" id="garmentInput" accept="image/jpeg,image/png,image/webp">
+        <div class="hint"><b>Rasm tanlang</b>yoki shu yerga tashlang<br>JPG / PNG / WEBP</div>
+      </label>
+      <label class="field">Kategoriya
+        <select id="category">
+          <option value="tops">Ustki kiyim (futbolka, kurtka)</option>
+          <option value="bottoms">Pastki kiyim (shim, yubka)</option>
+          <option value="one-pieces">Butun (ko'ylak, kombinezon)</option>
+        </select>
+      </label>
+      <label class="field">Kiyim rasmi turi
+        <select id="photoType">
+          <option value="model">Odam ustida kiyilgan</option>
+          <option value="flat-lay">Yoyib olingan (mahsulot surati)</option>
+        </select>
+      </label>
+      <div class="row">
+        <label class="field">Sifat
+          <select id="steps">
+            <option value="20">Tez (20)</option>
+            <option value="30" selected>O'rtacha (30)</option>
+            <option value="50">Yuqori (50)</option>
+          </select>
+        </label>
+        <label class="field">Variantlar
+          <select id="samples">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+        </label>
+      </div>
+      <label class="field">Seed (bir xil seed = bir xil natija)
+        <input type="number" id="seed" value="42" min="0">
+      </label>
+    </div>
+
+    <!-- 3. Natija -->
+    <div class="card result-card">
+      <h2>3. Natija</h2>
+      <div class="result-box" id="resultBox">Natija shu yerda chiqadi</div>
+      <div class="thumbs" id="thumbs"></div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="primary" id="runBtn" disabled>Kiyintirish</button>
+    <a class="download" id="downloadLink" download="natija.png">Natijani yuklab olish</a>
+    <span class="msg" id="msg"></span>
+  </div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const files = { person: null, garment: null };
+  let serverReady = false;
+
+  // ---------- Rasm tanlash + drag & drop ----------
+  function setupDrop(dropId, inputId, key) {
+    const drop = $(dropId), input = $(inputId);
+    const show = (file) => {
+      if (!file || !file.type.startsWith("image/")) return;
+      files[key] = file;
+      let img = drop.querySelector("img");
+      if (!img) { img = document.createElement("img"); drop.appendChild(img); }
+      img.src = URL.createObjectURL(file);
+      updateButton();
+    };
+    input.addEventListener("change", () => show(input.files[0]));
+    drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
+    drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault(); drop.classList.remove("over");
+      show(e.dataTransfer.files[0]);
+    });
+  }
+  setupDrop("personDrop", "personInput", "person");
+  setupDrop("garmentDrop", "garmentInput", "garment");
+
+  function updateButton() {
+    $("runBtn").disabled = !(serverReady && files.person && files.garment);
+  }
+
+  // ---------- Server holati ----------
+  async function checkHealth() {
+    try {
+      const r = await fetch("/api/health");
+      const h = await r.json();
+      serverReady = h.ready;
+      $("dot").className = "dot " + (h.ready ? (h.busy ? "warn" : "ok") : "err");
+      let t = h.ready ? `Tayyor · ${h.device}` : "Model yuklanmagan";
+      if (h.busy) t += ` · band (navbatda: ${h.waiting})`;
+      $("statusText").textContent = t;
+    } catch {
+      serverReady = false;
+      $("dot").className = "dot err";
+      $("statusText").textContent = "Serverga ulanib bo'lmadi";
+    }
+    updateButton();
+  }
+  checkHealth();
+  setInterval(checkHealth, 5000);
+
+  // ---------- Natijani ko'rsatish ----------
+  function showResult(src) {
+    $("resultBox").innerHTML = "";
+    const img = document.createElement("img");
+    img.src = src;
+    $("resultBox").appendChild(img);
+    const link = $("downloadLink");
+    link.href = src;
+    link.style.display = "inline";
+    document.querySelectorAll("#thumbs img").forEach((t) => t.classList.toggle("active", t.src === src));
+  }
+
+  // ---------- Yuborish ----------
+  $("runBtn").addEventListener("click", async () => {
+    const fd = new FormData();
+    fd.append("person", files.person);
+    fd.append("garment", files.garment);
+    fd.append("category", $("category").value);
+    fd.append("garment_photo_type", $("photoType").value);
+    fd.append("num_timesteps", $("steps").value);
+    fd.append("num_samples", $("samples").value);
+    fd.append("seed", $("seed").value || "42");
+
+    $("runBtn").disabled = true;
+    $("msg").className = "msg";
+    $("thumbs").innerHTML = "";
+    $("downloadLink").style.display = "none";
+    const started = Date.now();
+    $("resultBox").innerHTML = '<div><div class="spinner"></div><span id="timer">0 s</span></div>';
+    const timer = setInterval(() => {
+      const el = $("timer");
+      if (el) el.textContent = Math.round((Date.now() - started) / 1000) + " s";
+    }, 500);
+    $("msg").textContent = "Ishlanmoqda…";
+
+    try {
+      const r = await fetch("/api/tryon", { method: "POST", body: fd });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.detail || `Xato: HTTP ${r.status}`);
+
+      const srcs = data.images.map((b64) => "data:image/png;base64," + b64);
+      if (srcs.length > 1) {
+        srcs.forEach((src) => {
+          const t = document.createElement("img");
+          t.src = src;
+          t.addEventListener("click", () => showResult(src));
+          $("thumbs").appendChild(t);
+        });
+      }
+      showResult(srcs[0]);
+      $("msg").textContent = `Tayyor: serverda ${data.seconds} s, jami ${((Date.now() - started) / 1000).toFixed(1)} s`;
+    } catch (e) {
+      $("resultBox").textContent = "Natija yo'q";
+      $("msg").className = "msg err";
+      $("msg").textContent = e.message;
+    } finally {
+      clearInterval(timer);
+      updateButton();
+    }
+  });
+</script>
+</body>
+</html>
