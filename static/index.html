@@ -48,11 +48,15 @@
   .drop .hint b { display: block; color: var(--text); font-size: 15px; margin-bottom: 4px; }
 
   label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
-  select, input[type=number] {
+  select, input[type=number], input[type=text] {
     font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line);
     border-radius: 8px; padding: 8px 10px; width: 100%;
   }
   .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  div.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+  .checks { display: grid; grid-template-columns: 1fr; gap: 4px; }
+  .checks label { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 14px; cursor: pointer; }
+  .checks input { width: 16px; height: 16px; accent-color: var(--accent); }
 
   .result-box {
     aspect-ratio: 2 / 3; border-radius: 10px; background: var(--drop); border: 1px solid var(--line);
@@ -75,6 +79,22 @@
 
   .spinner { width: 36px; height: 36px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; margin: 0 auto 10px; }
   @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Model yuklanish paneli */
+  .setup { margin-bottom: 16px; display: none; }
+  .setup.show { display: flex; }
+  .setup-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .setup-big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .setup-meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bar { height: 10px; background: var(--drop); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .8s ease; }
+  .bar.small { height: 6px; }
+  .files { display: flex; flex-direction: column; gap: 10px; }
+  .file-row { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 13px; }
+  .file-row .bar { grid-column: 1 / -1; }
+  .file-row .st { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .file-row.done .st { color: var(--ok); }
+  .file-row.downloading .st, .file-row.merging .st { color: var(--accent); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -83,6 +103,17 @@
     <h1>Virtual kiyib ko'rish — test</h1>
     <div class="status"><span class="dot" id="dot"></span><span id="statusText">Server tekshirilmoqda…</span></div>
   </header>
+
+  <!-- 0. Model yuklanish holati (yuklash tugagach yashiriladi) -->
+  <div class="card setup" id="setup">
+    <h2>Model yuklanmoqda</h2>
+    <div class="setup-head">
+      <span class="setup-big" id="setupPct">0%</span>
+      <span class="setup-meta" id="setupMeta">—</span>
+    </div>
+    <div class="bar"><div id="setupBar"></div></div>
+    <div class="files" id="setupFiles"></div>
+  </div>
 
   <div class="grid">
     <!-- 1. Odam rasmi -->
@@ -101,25 +132,25 @@
         <input type="file" id="garmentInput" accept="image/jpeg,image/png,image/webp">
         <div class="hint"><b>Rasm tanlang</b>yoki shu yerga tashlang<br>JPG / PNG / WEBP</div>
       </label>
-      <label class="field">Kategoriya
-        <select id="category">
-          <option value="tops">Ustki kiyim (futbolka, kurtka)</option>
-          <option value="bottoms">Pastki kiyim (shim, yubka)</option>
-          <option value="one-pieces">Butun (ko'ylak, kombinezon)</option>
-        </select>
-      </label>
-      <label class="field">Kiyim rasmi turi
-        <select id="photoType">
-          <option value="model">Odam ustida kiyilgan</option>
-          <option value="flat-lay">Yoyib olingan (mahsulot surati)</option>
-        </select>
-      </label>
+      <div class="field">Rasmda nimalar bor? (faqat belgilanganlar kiydiriladi)
+        <div class="checks" id="items">
+          <label><input type="checkbox" value="auto" checked> <b>Avto: rasmdagi hamma narsa</b></label>
+          <label><input type="checkbox" value="top"> Ustki kiyim (ko'ylak, futbolka, polo)</label>
+          <label><input type="checkbox" value="bottom"> Pastki kiyim (shim, yubka, shorti)</label>
+          <label><input type="checkbox" value="dress"> Libos / kombinezon</label>
+          <label><input type="checkbox" value="outer"> Ustki qavat (kurtka, pidjak, palto)</label>
+          <label><input type="checkbox" value="shoes"> Oyoq kiyim</label>
+          <label><input type="checkbox" value="headwear"> Bosh kiyim (kepka, shlyapa)</label>
+          <label><input type="checkbox" value="eyewear"> Ko'zoynak</label>
+          <label><input type="checkbox" value="watch"> Soat</label>
+          <label><input type="checkbox" value="bag"> Sumka</label>
+        </div>
+      </div>
       <div class="row">
         <label class="field">Sifat
           <select id="steps">
-            <option value="20">Tez (20)</option>
-            <option value="30" selected>O'rtacha (30)</option>
-            <option value="50">Yuqori (50)</option>
+            <option value="4" selected>Tez (4 qadam)</option>
+            <option value="8">Yaxshiroq (8 qadam)</option>
           </select>
         </label>
         <label class="field">Variantlar
@@ -127,10 +158,12 @@
             <option value="1" selected>1</option>
             <option value="2">2</option>
             <option value="3">3</option>
-            <option value="4">4</option>
           </select>
         </label>
       </div>
+      <label class="field">Qo'shimcha ko'rsatma (ixtiyoriy, inglizcha yaxshiroq)
+        <input type="text" id="extraPrompt" placeholder="masalan: tuck the shirt into the pants">
+      </label>
       <label class="field">Seed (bir xil seed = bir xil natija)
         <input type="number" id="seed" value="42" min="0">
       </label>
@@ -176,11 +209,62 @@
     });
   }
   setupDrop("personDrop", "personInput", "person");
+  // libos tanlansa, ustki/pastki kiyim bilan bir vaqtda bo'lmaydi
+  const itemBoxes = () => [...document.querySelectorAll("#items input")];
+  const selectedItems = () => itemBoxes().filter((b) => b.checked).map((b) => b.value);
+  itemBoxes().forEach((b) => b.addEventListener("change", () => {
+    if (b.checked && b.value === "auto") itemBoxes().forEach((o) => { if (o !== b) o.checked = false; });
+    if (b.checked && b.value !== "auto") itemBoxes().forEach((o) => { if (o.value === "auto") o.checked = false; });
+    if (b.checked && b.value === "dress") itemBoxes().forEach((o) => { if (o.value === "top" || o.value === "bottom") o.checked = false; });
+    if (b.checked && (b.value === "top" || b.value === "bottom")) itemBoxes().forEach((o) => { if (o.value === "dress") o.checked = false; });
+    updateButton();
+  }));
   setupDrop("garmentDrop", "garmentInput", "garment");
 
   function updateButton() {
-    $("runBtn").disabled = !(serverReady && files.person && files.garment);
+    $("runBtn").disabled = !(serverReady && setupComplete && files.person && files.garment
+                             && document.querySelector("#items input:checked"));
   }
+
+  // ---------- Model yuklanish holati (real vaqt) ----------
+  let setupComplete = true;
+  const samples = [];  // [vaqt, baytlar] — tezlikni hisoblash uchun
+  const GB = (b) => (b / 1e9).toFixed(2) + " GB";
+  const fmtTime = (s) => {
+    if (!isFinite(s) || s < 0) return "—";
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.floor(s % 60);
+    return h ? `${h} soat ${m} daq` : m ? `${m} daq ${sec} s` : `${sec} s`;
+  };
+  const STATE = { done: "✓ tayyor", downloading: "yuklanmoqda", merging: "birlashtirilmoqda", pending: "navbatda" };
+
+  async function checkSetup() {
+    let s;
+    try { s = await (await fetch("/api/setup")).json(); } catch { return; }
+    setupComplete = s.complete;
+    $("setup").classList.toggle("show", !s.complete);
+    updateButton();
+    if (s.complete) return;
+
+    samples.push([s.time, s.done]);
+    while (samples.length > 2 && s.time - samples[0][0] > 30) samples.shift();
+    const [t0, d0] = samples[0];
+    const speed = s.time > t0 ? (s.done - d0) / (s.time - t0) : 0;
+
+    const pct = (100 * s.done / s.total);
+    $("setupPct").textContent = pct.toFixed(1) + "%";
+    $("setupBar").style.width = pct + "%";
+    $("setupMeta").textContent =
+      `${GB(s.done)} / ${GB(s.total)} · ${(speed / 1e6).toFixed(1)} MB/s · qoldi: ${fmtTime((s.total - s.done) / speed)}`;
+
+    $("setupFiles").innerHTML = s.files.map((f) => {
+      const p = 100 * f.done / f.size;
+      const st = f.state === "downloading" ? `${GB(f.done)} / ${GB(f.size)} (${p.toFixed(0)}%)` : STATE[f.state] + ` · ${GB(f.size)}`;
+      return `<div class="file-row ${f.state}"><span>${f.name}</span><span class="st">${st}</span>
+              <div class="bar small"><div style="width:${p}%"></div></div></div>`;
+    }).join("");
+  }
+  checkSetup();
+  setInterval(checkSetup, 2000);
 
   // ---------- Server holati ----------
   async function checkHealth() {
@@ -219,11 +303,11 @@
     const fd = new FormData();
     fd.append("person", files.person);
     fd.append("garment", files.garment);
-    fd.append("category", $("category").value);
-    fd.append("garment_photo_type", $("photoType").value);
+    fd.append("items", selectedItems().join(","));
     fd.append("num_timesteps", $("steps").value);
     fd.append("num_samples", $("samples").value);
     fd.append("seed", $("seed").value || "42");
+    fd.append("extra_prompt", $("extraPrompt").value);
 
     $("runBtn").disabled = true;
     $("msg").className = "msg";

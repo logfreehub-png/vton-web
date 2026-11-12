@@ -1,5 +1,5 @@
-# torch, pillow va fashn_vton allaqachon ~/fashn-vton-1.5/.venv ichida bor.
-# Bu yerda faqat web server uchun kerakli paketlar:
+# Web server paketlari (model ComfyUI ichida ishlaydi):
 fastapi>=0.110
 uvicorn[standard]>=0.29
 python-multipart>=0.0.9
+pillow>=10

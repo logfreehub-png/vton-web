@@ -15,14 +15,12 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from . import config
-from .model import model
+from . import config, setup_status
+from .model import ITEMS, model
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("vton")
 
-CATEGORIES = {"tops", "bottoms", "one-pieces"}
-PHOTO_TYPES = {"model", "flat-lay"}
 
 
 @asynccontextmanager
@@ -70,29 +68,35 @@ def health():
     }
 
 
+@app.get("/api/setup")
+def setup():
+    """Model fayllari yuklanish holati."""
+    return setup_status.status()
+
+
 @app.post("/api/tryon")
 async def tryon(
     person: UploadFile = File(..., description="Odam rasmi"),
     garment: UploadFile = File(..., description="Kiyim rasmi"),
-    category: str = Form("tops"),
-    garment_photo_type: str = Form("model"),
-    num_timesteps: int = Form(30),
+    items: str = Form("top", description="Rasmdagi narsalar, vergul bilan: top,bottom,shoes,..."),
+    num_timesteps: int = Form(4),
     num_samples: int = Form(1),
-    guidance_scale: float = Form(1.5),
     seed: int = Form(42),
-    segmentation_free: bool = Form(True),
+    extra_prompt: str = Form(""),
 ):
     # --- Parametrlarni tekshirish ---
-    if category not in CATEGORIES:
-        raise HTTPException(400, f"category noto'g'ri: {category}")
-    if garment_photo_type not in PHOTO_TYPES:
-        raise HTTPException(400, f"garment_photo_type noto'g'ri: {garment_photo_type}")
-    if not 10 <= num_timesteps <= 50:
-        raise HTTPException(400, "num_timesteps 10 va 50 orasida bo'lishi kerak")
-    if not 1 <= num_samples <= 4:
-        raise HTTPException(400, "num_samples 1 va 4 orasida bo'lishi kerak")
-    if not 0.0 <= guidance_scale <= 5.0:
-        raise HTTPException(400, "guidance_scale 0 va 5 orasida bo'lishi kerak")
+    item_list = [i.strip() for i in items.split(",") if i.strip()]
+    unknown = [i for i in item_list if i not in ITEMS and i != "auto"]
+    if not item_list or unknown:
+        raise HTTPException(400, f"items noto'g'ri: {items}. Mumkin: {', '.join(ITEMS)}")
+    if "dress" in item_list and ({"top", "bottom"} & set(item_list)):
+        raise HTTPException(400, "Libos (dress) ustki/pastki kiyim bilan birga tanlanmaydi")
+    if not 1 <= num_timesteps <= 20:
+        raise HTTPException(400, "num_timesteps 1 va 20 orasida bo'lishi kerak")
+    if not 1 <= num_samples <= 3:
+        raise HTTPException(400, "num_samples 1 va 3 orasida bo'lishi kerak")
+    if len(extra_prompt) > 500:
+        raise HTTPException(400, "Qo'shimcha ko'rsatma 500 belgidan oshmasin")
 
     person_img = await read_image(person, "Odam")
     garment_img = await read_image(garment, "Kiyim")
@@ -104,13 +108,11 @@ async def tryon(
             model.run,
             person_image=person_img,
             garment_image=garment_img,
-            category=category,
-            garment_photo_type=garment_photo_type,
+            items=item_list,
             num_samples=num_samples,
             num_timesteps=num_timesteps,
-            guidance_scale=guidance_scale,
             seed=seed,
-            segmentation_free=segmentation_free,
+            extra_prompt=extra_prompt,
         )
     except Exception as e:  # GPU xotirasi to'lishi va boshqa xatolar
         log.exception("Inference xatosi")
@@ -130,7 +132,7 @@ async def tryon(
         for i, img in enumerate(images):
             img.save(folder / f"result_{i:02d}.png")
 
-    log.info("Try-on tayyor: %s, %.2f s, %s, %d ta rasm", run_id, seconds, category, len(images))
+    log.info("Try-on tayyor: %s, %.2f s, %s, %d ta rasm", run_id, seconds, ",".join(item_list), len(images))
     return {
         "id": run_id,
         "seconds": round(seconds, 2),
