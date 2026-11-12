@@ -17,6 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from . import config, setup_status
+from .gpu_stats import gpu_stats
 from .model import ITEMS, model
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -76,6 +77,8 @@ def health():
         "load_seconds": round(model.load_seconds, 1),
         "busy": model.busy,
         "waiting": model.waiting,
+        # GPU yuklamasi, xotira, harorat (clothes-shop admin panelidagi grafiklar uchun)
+        "gpus": gpu_stats(),
     }
 
 
