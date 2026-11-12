@@ -21,8 +21,13 @@ MEGAPIXELS = float(os.getenv("QWEN_MEGAPIXELS", "1.0"))
 # Bitta rasm uchun maksimal hajm (MB)
 MAX_UPLOAD_MB = int(os.getenv("VTON_MAX_UPLOAD_MB", "15"))
 
-# Natijalarni diskka ham saqlash (1 = ha, 0 = yo'q)
-SAVE_OUTPUTS = os.getenv("VTON_SAVE_OUTPUTS", "1") == "1"
+# Natijalarni diskka ham saqlash (1 = ha, 0 = yo'q).
+# Production'da 0: aks holda har bir mijoz surati outputs/ ichida muddatsiz qoladi.
+SAVE_OUTPUTS = os.getenv("VTON_SAVE_OUTPUTS", "0") == "1"
+
+# /api/tryon uchun maxfiy kalit (X-Api-Key sarlavhasi). Bo'sh bo'lsa tekshirilmaydi:
+# faqat lokal sinov uchun. Serverda albatta bering, aks holda GPU hammaga ochiq.
+API_KEY = os.getenv("VTON_API_KEY", "").strip()
 
 STATIC_DIR = BASE_DIR / "static"
 OUTPUT_DIR = BASE_DIR / "outputs"

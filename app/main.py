@@ -3,6 +3,7 @@
 Ishga tushirish:  bash run.sh
 """
 import base64
+import hmac
 import io
 import logging
 import time
@@ -10,7 +11,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -21,6 +22,16 @@ from .model import ITEMS, model
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("vton")
 
+if not config.API_KEY:
+    log.warning("VTON_API_KEY berilmagan: /api/tryon kalitsiz ochiq. Serverda albatta kalit bering!")
+
+
+def require_api_key(x_api_key: str | None = Header(None)) -> None:
+    """VTON_API_KEY berilgan bo'lsa, faqat shu kalit bilan kelgan so'rovlar GPU'ni ishlata oladi."""
+    if not config.API_KEY:
+        return
+    if not x_api_key or not hmac.compare_digest(x_api_key, config.API_KEY):
+        raise HTTPException(401, "API kaliti noto'g'ri yoki berilmagan (X-Api-Key)")
 
 
 @asynccontextmanager
@@ -74,7 +85,7 @@ def setup():
     return setup_status.status()
 
 
-@app.post("/api/tryon")
+@app.post("/api/tryon", dependencies=[Depends(require_api_key)])
 async def tryon(
     person: UploadFile = File(..., description="Odam rasmi"),
     garment: UploadFile = File(..., description="Kiyim rasmi"),
