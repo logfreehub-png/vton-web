@@ -59,3 +59,48 @@ def gpu_stats() -> list[dict]:
         data = _query()
         _cached = (time.monotonic(), data)
         return data
+
+
+# ---------------------------------------------------------------------------
+# Server (host) ko'rsatkichlari: CPU, RAM, swap, disk, load, uptime.
+# Admin paneldagi "Server resurslari" sahifasida GPU serverning o'zini ham ko'rsatish uchun.
+_host_lock = threading.Lock()
+_host_cached: tuple[float, dict | None] = (0.0, None)
+
+
+def _host_query() -> dict | None:
+    try:
+        import os
+        import psutil
+    except ImportError:
+        return None
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    disk = psutil.disk_usage("/")
+    try:
+        load = [round(x, 2) for x in os.getloadavg()]
+    except OSError:
+        load = None
+    return {
+        # interval=None: oldingi chaqiruvdan beri o'rtacha (kesh 1 s, ya'ni ~1 soniyalik oyna)
+        "cpu_percent": round(psutil.cpu_percent(interval=None), 1),
+        "cpu_count": psutil.cpu_count(logical=True),
+        "load_avg": load,
+        "memory": {"used": mem.total - mem.available, "total": mem.total, "percent": round(mem.percent, 1)},
+        "swap": {"used": swap.used, "total": swap.total, "percent": round(swap.percent, 1)},
+        "disk": {"used": disk.used, "total": disk.total, "percent": round(disk.percent, 1)},
+        "uptime_seconds": int(time.time() - psutil.boot_time()),
+    }
+
+
+def host_stats() -> dict | None:
+    """GPU serverning CPU / RAM / disk holati. psutil o'rnatilmagan bo'lsa None."""
+    global _host_cached
+    with _host_lock:
+        ts, data = _host_cached
+        if data is not None and time.monotonic() - ts < _CACHE_SECONDS:
+            return data
+        data = _host_query()
+        _host_cached = (time.monotonic(), data)
+        return data
+
